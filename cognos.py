@@ -20,10 +20,6 @@ if len(sys.argv)>1:
     INPUT_KPI_NAME="AND KPI_NAME='{KPI_NAME}'".format(KPI_NAME=sys.argv[1])
 
 FORMATTER=logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-DB_USER='psa'
-DB_PASSWORD=base64.b64decode('dHRpcGFzcw==')
-ORACLE_SID='IPHLXP'
-DB_HOST='shhlxprd-scan:1521'
 LOAD_METADATA_SLEEP_INTERVAL=300
 BCP_IN_DIR=os.environ['RAW_DATA_DIR']+'/INPUTS/COGNOS/'
 if not os.path.exists(BCP_IN_DIR):
@@ -96,7 +92,7 @@ def get_file_handler():
 def get_logger(logger_name):
     logger=logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
-    # logger.addHandler(get_console_handler())
+    logger.addHandler(get_console_handler())
     logger.addHandler(get_file_handler())
     logger.propagate=False
     return logger
@@ -148,8 +144,7 @@ def load_metada():
         try:
             cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
-            app_logger.error(e)
-            app_logger.error(sqlplus_script[0:900])
+            app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
             return False
 
         keys=['SMA_NAME','DEVICE_GROUP_NAME','ADDITIONAL_CRITERIA','DESTINATION_TABLE','DESTINATION_DB','DESTINATION_DB_HOST', 'DESTINATION_USER_ID','DESTINATION_PW' ]
@@ -188,8 +183,7 @@ def load_metada():
         try:
             cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
-            app_logger.error(e)
-            app_logger.error(sqlplus_script[0:900])
+            app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
             return False
 
 
@@ -209,8 +203,7 @@ def load_metada():
         try:
             cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
-            app_logger.error(e)
-            app_logger.error(sqlplus_script[0:900])
+            app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
             return False
         keys=['SMA_NAME','DEVICE_GROUP_NAME','DEVICE','DEVICE_EXPRESSION']
         device_details= build_ar_dict(keys,cursor)
@@ -249,7 +242,7 @@ def enqueue(resolution,kpi_list=None):
         #Get the sma details
         sma=filter(lambda x: x['SMA_NAME']==kpi['SMA_NAME'],sma_details)[0]
         if not sma:
-            app_logger.error('SMA {sma} not found in sma_details table'.format(sma=['SMA_NAME']))
+            app_logger.error('SMA {sma} not found in sma_details table'.format(sma=kpi['SMA_NAME']))
             continue
         F_DEVICE_FIELD_NAME=kpi['DEVICE_FIELD_NAME'].split(',')[0]
         if kpi['DEVICE_FIELD_NAME'].startswith('FORMULA:'):
@@ -390,8 +383,7 @@ def th_run_now_kpi():
             try:
                 cursor.execute(sqlplus_script)
             except cx_Oracle.DatabaseError as e:
-                app_logger.error(e)
-                app_logger.error(sqlplus_script[0:900])
+                app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
                 return False
             keys=['SMA_NAME','KPI_NAME','UNITS','SOURCE_BASE_TABLE','KPI_EXPRESSION','ADDITIONAL_CRITERIA','AGGR_TO_DEVICE','AGGR_5M','AGGR_15M','AGGR_HH','AGGR_DY','AGGR_IW','AGGR_MO','AGGR_TABLE_EXT_5M','AGGR_TABLE_EXT_15M','AGGR_TABLE_EXT_HH','AGGR_TABLE_EXT_DY','AGGR_TABLE_EXT_IW','AGGR_TABLE_EXT_MO','DEVICE_FIELD_NAME','DEVICE_TARGET_FIELD' ]
             run_now_kpi_details= build_ar_dict(keys,cursor)
@@ -413,8 +405,7 @@ def th_run_now_kpi():
                 try:
                     cursor.execute(sqlplus_script)
                 except cx_Oracle.DatabaseError as e:
-                    app_logger.error(e)
-                    app_logger.error(sqlplus_script[0:900])
+                    app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
                     return False
                 db.commit()
             time.sleep(30)
@@ -431,8 +422,7 @@ def get_last_handled_datestamp(table):
         try:
             cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
-            app_logger.error(e)
-            app_logger.error(sqlplus_script[0:900])
+            app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
             return False
         # print(''.join(cursor.fetchall()[0]))
         return ''.join(filter(None,cursor.fetchall()[0]))
@@ -460,8 +450,7 @@ def update_last_handled_datestamp(table,update=True):
         try:
             cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
-            app_logger.error(e)
-            app_logger.error(sqlplus_script[0:900])
+            app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' ')	)
             return False
         db.commit()
 
@@ -554,8 +543,7 @@ def query_and_load_data(table):
         try:
             cursor_s.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
-            app_logger.error(e)
-            app_logger.error(sqlplus_script[0:900])
+            app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
             return False
         source_data_keys=cursor_s.fetchall()
         if source_data_keys:
@@ -586,8 +574,7 @@ def query_and_load_data(table):
                     try:
                         cursor.execute(sqlplus_script)
                     except cx_Oracle.DatabaseError as e:
-                        app_logger.error(e)
-                        app_logger.error(sqlplus_script)
+                        app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
                         return False
                     db.commit()
                     index=0
@@ -607,8 +594,7 @@ def query_and_load_data(table):
                 try:
                     cursor.execute(sqlplus_script)
                 except cx_Oracle.DatabaseError as e:
-                    app_logger.error(e)
-                    app_logger.error(sqlplus_script)
+                    app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
                     return False
                 db.commit()
             
@@ -641,8 +627,7 @@ def query_and_load_data(table):
             try:
                 cursor_s.execute(sqlplus_script)
             except cx_Oracle.DatabaseError as e:
-                app_logger.error(e)
-                app_logger.error(sqlplus_script[0:900])
+                app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
                 return False
             
             #Build bcp file
@@ -662,7 +647,7 @@ def query_and_load_data(table):
                 try:
                     os.rename(file_name, file_name+".bcp")                
                     file_name+=".bcp"
-                    app_logger.info('File {file_name} was created'.format(file_name=file_name))
+                    app_logger.info(table['SMA_NAME']+" --- "+'File {file_name} was created'.format(file_name=file_name))
                 except OSError:
                     pass
         else:
@@ -709,7 +694,7 @@ def load_bcp_files():
                 file.write('KPI_NAME,\n')
                 file.write('KPI_VALUE,\n')
                 file.write('KPI_UNITS )\n')
-            app_logger.info("Loading {file_name}".format(file_name=file_name))
+            app_logger.info("{sma_name} --- Loading {file_name}".format(sma_name=sma_name,file_name=file_name))
             log_file=LOG_DIR+'/'+os.path.basename(file_name.replace('.bcp','.log'))
             DESTINATION_PW=None
             if sma['DESTINATION_PW']:
@@ -729,7 +714,7 @@ def load_bcp_files():
             if returncode==0:
                 os.remove(log_file)
             os.remove(ctl_file)
-            app_logger.info("Moving file {file_name} to {BCP_DONE_DIR}".format(BCP_DONE_DIR=BCP_DONE_DIR,file_name=file_name))
+            app_logger.info("{sma_name} --- Moving file {file_name} to {BCP_DONE_DIR}".format(sma_name=sma_name,BCP_DONE_DIR=BCP_DONE_DIR,file_name=file_name))
             os.rename(file_name, BCP_DONE_DIR+'/'+os.path.basename(file_name))
         time.sleep(10)
 
@@ -762,6 +747,22 @@ app_logger.info('Starting Cognos Process')
 #Check that the process is not running
 check_running()
 
+DB_USER=os.environ['DB_USER']
+if not DB_USER:
+	app_logger.error('DB_USER not defined as environment variable')
+	quit()
+DB_PASSWORD=base64.b64decode(os.environ['DB_PASSWORD'])
+if not DB_PASSWORD:
+	app_logger.error('DB_PASSWORD not defined as environment variable')
+	quit()
+ORACLE_SID=os.environ['ORACLE_SID']
+if not ORACLE_SID:
+	app_logger.error('ORACLE_SID not defined as environment variable')
+	quit()
+DB_HOST=os.environ['DB_HOST']
+if not DB_HOST:
+	app_logger.error('DB_HOST not defined as environment variable')
+	quit()
 
 #Load Metadata
 load_metada()
