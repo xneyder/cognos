@@ -20,6 +20,10 @@ if len(sys.argv)>1:
     INPUT_KPI_NAME="AND KPI_NAME='{KPI_NAME}'".format(KPI_NAME=sys.argv[1])
 
 FORMATTER=logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+DB_USER=os.environ['DB_USER']
+DB_PASSWORD=base64.b64decode(os.environ['DB_PASSWORD'])
+ORACLE_SID=os.environ['ORACLE_SID']
+DB_HOST=os.environ['DB_HOST']
 LOAD_METADATA_SLEEP_INTERVAL=300
 BCP_IN_DIR=os.environ['RAW_DATA_DIR']+'/INPUTS/COGNOS/'
 if not os.path.exists(BCP_IN_DIR):
@@ -747,38 +751,26 @@ app_logger.info('Starting Cognos Process')
 #Check that the process is not running
 check_running()
 
-DB_USER=os.environ['DB_USER']
-if not DB_USER:
-	app_logger.error('DB_USER not defined as environment variable')
-	quit()
-DB_PASSWORD=base64.b64decode(os.environ['DB_PASSWORD'])
-if not DB_PASSWORD:
-	app_logger.error('DB_PASSWORD not defined as environment variable')
-	quit()
-ORACLE_SID=os.environ['ORACLE_SID']
-if not ORACLE_SID:
-	app_logger.error('ORACLE_SID not defined as environment variable')
-	quit()
-DB_HOST=os.environ['DB_HOST']
-if not DB_HOST:
-	app_logger.error('DB_HOST not defined as environment variable')
-	quit()
+workers=[]
 
 #Load Metadata
 load_metada()
 worker = Thread(target=th_load_metada, args=())
 worker.setDaemon(True)
 worker.start()
+workers.append({'function':th_load_metada,'params':'','object':worker})
 
 #Trigger threads to handle every resolution
 for resolution in RESOLUTIONS:
     worker = Thread(target=th_enqueue, args=(resolution,))
     worker.setDaemon(True)
+    workers.append({'function':th_enqueue,'params':resolution,'object':worker})
     worker.start()
 
 #thread to listen for run now kpi's and add them to the queue
 worker = Thread(target=th_run_now_kpi, args=())
 worker.setDaemon(True)
+workers.append({'function':th_run_now_kpi,'params':'','object':worker})
 worker.start()
 
 
@@ -786,13 +778,26 @@ worker.start()
 for i in range(threads):
     worker = Thread(target=process_queue, args=(processes_queue,))
     worker.setDaemon(True)
+    workers.append({'function':process_queue,'params':processes_queue,'object':worker})
     worker.start()
 
 #Trigger the sqlldr thread
 worker = Thread(target=load_bcp_files, args=())
 worker.setDaemon(True)
+workers.append({'function':load_bcp_files,'params':'','object':worker})
 worker.start()
 
-#Go to sleep
+#Monitor that none of the threads crashes
 while True:
-    time.sleep(10000000)
+    for idx,running_worker in enumerate(workers):
+        if not running_worker['object'].isAlive():
+            app_logger.error('Thread {running_worker} crashed running it again'.format(running_worker=running_worker))
+            if running_worker['params']:
+                worker = Thread(target=running_worker['function'], args=(running_worker['params'],))
+            else:
+                worker = Thread(target=running_worker['function'], args=())
+            worker.setDaemon(True)
+            workers[idx]['object']=worker
+            worker.start()
+    time.sleep(900)
+
