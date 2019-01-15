@@ -520,13 +520,23 @@ def query_and_load_data(table):
                 DEVICE_LIST=table['DEVICE_LIST']
                 )
 
-
+        DATETIME_OFFSET=2
+        if table['SOURCE_RESOLUTION']=='5M' or table['SOURCE_RESOLUTION']=='15M':
+            DATETIME_OFFSET=2
+        elif table['SOURCE_RESOLUTION']=='HR':
+            DATETIME_OFFSET=7
+        elif table['SOURCE_RESOLUTION']=='DY':
+            DATETIME_OFFSET=30
+        elif table['SOURCE_RESOLUTION']=='WK':
+            DATETIME_OFFSET=90
+        elif table['SOURCE_RESOLUTION']=='MO':
+            DATETIME_OFFSET=180
         #get the datetimes created after last_handled_datestamp
         sqlplus_script="""    
         SELECT DISTINCT TO_CHAR({DATETIME},'DD-MON-YY HH24:MI'),{DEVICE_FIELD_NAME}
         FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
         WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI') 
-        AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI')-2
+        AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI')-{DATETIME_OFFSET}
         {SMA_ADDITIONAL_CRITERIA} 
         {KPI_ADDITIONAL_CRITERIA} 
         {DEVICE_CRITERIA} 
@@ -540,6 +550,7 @@ def query_and_load_data(table):
             KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
             DEVICE_CRITERIA=DEVICE_CRITERIA,
             DEVICE_LIST=DEVICE_LIST,
+            DATETIME_OFFSET=DATETIME_OFFSET,
             DATETIME=table['DATETIME'],
             )
 
