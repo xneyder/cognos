@@ -655,9 +655,10 @@ def query_and_load_data(table):
                 except OSError:
                     pass
         else:
-            app_logger.info('No records found for SMA {SMA_NAME} {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}'.format(SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+            app_logger.info('No records found for SMA {SMA_NAME} {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION} SQL: {sqlplus_script}'.format(SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
             SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
             SMA_NAME=table['SMA_NAME'],
+            sqlplus_script=sqlplus_script.replace('\n',' ')
             ))
         #Update LAST_HANDLED_DATESTAMP
         update_last_handled_datestamp(table,update)
