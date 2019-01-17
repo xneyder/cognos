@@ -794,10 +794,13 @@ for i in range(threads):
     worker.start()
 
 #Trigger the sqlldr thread
-worker = Thread(target=load_bcp_files, args=())
-worker.setDaemon(True)
-workers.append({'function':load_bcp_files,'params':'','object':worker})
-worker.start()
+try:
+    worker = Thread(target=load_bcp_files, args=())
+    worker.setDaemon(True)
+    workers.append({'function':load_bcp_files,'params':'','object':worker})
+    worker.start()
+except Exception as e:
+    logger.exception("load_bcp_files crashed. Error: %s", e)
 
 #Monitor that none of the threads crashes
 while True:
