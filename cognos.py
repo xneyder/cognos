@@ -728,11 +728,11 @@ def load_bcp_files():
                     DESTINATION_PW,
                     DESTINATION_DB,
                 )
+                if returncode==0:
+                    os.remove(log_file)
+                os.remove(ctl_file)
             except OSError:
                 pass	
-            if returncode==0:
-                os.remove(log_file)
-            os.remove(ctl_file)
             app_logger.info("{sma_name} --- Moving file {file_name} to {BCP_DONE_DIR}".format(sma_name=sma_name,BCP_DONE_DIR=BCP_DONE_DIR,file_name=file_name))
             os.rename(file_name, BCP_DONE_DIR+'/'+os.path.basename(file_name))
         time.sleep(10)
