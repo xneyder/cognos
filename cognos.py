@@ -721,12 +721,15 @@ def load_bcp_files():
                 DESTINATION_USER_ID=DB_USER
                 DESTINATION_PW=DB_PASSWORD
                 DESTINATION_DB=ORACLE_SID
-            returncode,sqlldr_out=run_sqlldr(ctl_file,
-                log_file,
-                DESTINATION_USER_ID,
-                DESTINATION_PW,
-                DESTINATION_DB,
+            try:
+                returncode,sqlldr_out=run_sqlldr(ctl_file,
+                    log_file,
+                    DESTINATION_USER_ID,
+                    DESTINATION_PW,
+                    DESTINATION_DB,
                 )
+            except OSError:
+                pass	
             if returncode==0:
                 os.remove(log_file)
             os.remove(ctl_file)
