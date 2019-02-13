@@ -696,7 +696,7 @@ def load_bcp_files():
                 os.rename(file_name, BCP_DONE_DIR+'/'+os.path.basename(file_name))
                 continue
 
-            ctl_file=TMP_DIR+'/'+target_table+'.ctl'
+            ctl_file=BCP_DONE_DIR+'/'+target_table+'.ctl'
             with open(ctl_file,'w') as file:
                 file.write('load data\n')
                 file.write("INFILE '{file_name}'\n".format(file_name=file_name))
@@ -711,7 +711,7 @@ def load_bcp_files():
                 file.write('KPI_VALUE,\n')
                 file.write('KPI_UNITS )\n')
             app_logger.info("{sma_name} --- Loading {file_name}".format(sma_name=sma_name,file_name=file_name))
-            log_file=LOG_DIR+'/'+os.path.basename(file_name.replace('.bcp','.log'))
+            log_file=BCP_DONE_DIR+'/'+os.path.basename(file_name.replace('.bcp','.log'))
             DESTINATION_PW=None
             if sma['DESTINATION_PW']:
                 DESTINATION_USER_ID=sma['DESTINATION_USER_ID']
@@ -728,9 +728,9 @@ def load_bcp_files():
                     DESTINATION_PW,
                     DESTINATION_DB,
                 )
-                if returncode==0:
-                    os.remove(log_file)
-                os.remove(ctl_file)
+                #if returncode==0:
+                    #os.remove(log_file)
+                #os.remove(ctl_file)
             except OSError:
                 pass	
             app_logger.info("{sma_name} --- Moving file {file_name} to {BCP_DONE_DIR}".format(sma_name=sma_name,BCP_DONE_DIR=BCP_DONE_DIR,file_name=file_name))
