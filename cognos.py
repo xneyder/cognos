@@ -227,7 +227,7 @@ def enqueue(resolution,kpi_list=None):
     table_list=[]
     if kpi_list==None:
         kpi_list=[ x for x in kpi_details if x[resolution['column_formula']] ]
-
+    
     for kpi in kpi_list:
         #Build the DATETIME round formula according to the resolution
         if resolution['name'] == '5MIN':
@@ -268,7 +268,7 @@ def enqueue(resolution,kpi_list=None):
             if device_criteria:
                 device_criteria+=")"
 
-        index=next((index for (index, x) in enumerate(table_list) if x["SOURCE_BASE_TABLE"] == kpi['SOURCE_BASE_TABLE'] and x["SMA_NAME"] == kpi['SMA_NAME'] and x["KPI_ADDITIONAL_CRITERIA"] == kpi['ADDITIONAL_CRITERIA']), None)
+        index=next((index for (index, x) in enumerate(table_list) if x["SOURCE_RESOLUTION"] == kpi[resolution['column_source_resolution']] and x["SOURCE_BASE_TABLE"] == kpi['SOURCE_BASE_TABLE'] and x["SMA_NAME"] == kpi['SMA_NAME'] and x["KPI_ADDITIONAL_CRITERIA"] == kpi['ADDITIONAL_CRITERIA']), None)
         if index >=0:
             table_list[index]['KPI_LIST'].append({
                 'KPI_NAME':kpi['KPI_NAME'],
