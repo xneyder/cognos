@@ -627,7 +627,8 @@ def query_and_load_data(table):
             GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
             """.format(            
                 AGGR_TYPE=table['AGGR_TYPE'],
-                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'],
+                DEVICE_FIELD_NAME=table['F_DEVICE_FIELD_NAME'],
+                #DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'],
                 DATETIME=table['DATETIME'],
                 kpi_list=kpi_list,
                 SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
