@@ -627,8 +627,8 @@ def query_and_load_data(table):
             GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
             """.format(            
                 AGGR_TYPE=table['AGGR_TYPE'],
-                DEVICE_FIELD_NAME=table['F_DEVICE_FIELD_NAME'],
-                #DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'],
+                #DEVICE_FIELD_NAME=table['F_DEVICE_FIELD_NAME'],
+                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'].replace("FORMULA:",""),
                 DATETIME=table['DATETIME'],
                 kpi_list=kpi_list,
                 SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
@@ -659,7 +659,15 @@ def query_and_load_data(table):
                 for record in cursor_s:
                     for i in range(base_len,len(record),3):
                         file.write(','.join(['' if x is None else x for x in record[:base_len]])+',')
-                        file.write(str(record[i])+','+str(record[i+1])+','+str(record[i+2])+'\n')
+                        try:
+                            file.write(str(record[i])+','+str(record[i+1])+','+str(record[i+2])+'\n')
+                        except IndexError:
+                            print(sqlplus_script)
+                            print(record)
+                            print(table['F_DEVICE_FIELD_NAME'])
+                            print(table['DEVICE_TARGET_FIELD'])
+                            print(table['DEVICE_TARGET_FIELD'])
+                            #quit()
                 try:
                     os.rename(file_name, file_name+".bcp")                
                     file_name+=".bcp"
