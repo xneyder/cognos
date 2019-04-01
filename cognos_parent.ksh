@@ -1,6 +1,9 @@
 #!/usr/bin/ksh
 
-BASE_DIR=/teoco/sa_root_med01
-. $BASE_DIR/project/env/env.ksh
+#Get the script path
+__REAL_SCRIPTDIR=$( cd -P -- "$(dirname -- "$(command -v -- "$0")")" && pwd -P )
 
-python $INTEGRATION_DIR/implementation/cognos/cognos.py &
+cd $__REAL_SCRIPTDIR
+. ./env.ksh
+
+python cognos.py &
