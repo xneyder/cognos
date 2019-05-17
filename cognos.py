@@ -10,6 +10,7 @@ import base64
 import logging
 import sys
 import cx_Oracle
+import random
 from Queue import Queue
 from threading import Thread
 from dateutil.relativedelta import relativedelta
@@ -40,9 +41,9 @@ TMP_DIR=LOG_DIR
 if not os.path.exists(TMP_DIR):
     os.makedirs(TMP_DIR)
 RESOLUTIONS=[
-    {'name':'5MIN','offset':10,'column_formula':'AGGR_5M','column_source_resolution':'AGGR_TABLE_EXT_5M','max_history_mins':1440},
-    {'name':'15MIN','offset':20,'column_formula':'AGGR_15M','column_source_resolution':'AGGR_TABLE_EXT_15M','max_history_mins':1440},
-    {'name':'HH','offset':80,'column_formula':'AGGR_HH','column_source_resolution':'AGGR_TABLE_EXT_HH','max_history_mins':1440},
+    {'name':'5MIN','offset':10,'column_formula':'AGGR_5M','column_source_resolution':'AGGR_TABLE_EXT_5M','max_history_mins':4880},
+    {'name':'15MIN','offset':20,'column_formula':'AGGR_15M','column_source_resolution':'AGGR_TABLE_EXT_15M','max_history_mins':4880},
+    {'name':'HH','offset':80,'column_formula':'AGGR_HH','column_source_resolution':'AGGR_TABLE_EXT_HH','max_history_mins':4880},
     {'name':'DD','offset':360,'column_formula':'AGGR_DY','column_source_resolution':'AGGR_TABLE_EXT_DY','max_history_mins':10080},
     {'name':'IW','offset':600,'column_formula':'AGGR_IW','column_source_resolution':'AGGR_TABLE_EXT_IW','max_history_mins':43200},
     {'name':'MM','offset':780,'column_formula':'AGGR_MO','column_source_resolution':'AGGR_TABLE_EXT_MO','max_history_mins':259200},
@@ -67,7 +68,7 @@ class ManagedDbConnection:
             app_logger.error(e)
             quit()
         self.cursor = self.db.cursor()
-        sqlplus_script="alter session set nls_date_format = 'DD-MON-YY HH24:MI'"
+        sqlplus_script="alter session set nls_date_format = 'DD-MON-YY HH24:MI:SS'"
         try:
             self.cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
@@ -89,7 +90,7 @@ def get_console_handler():
     return console_handler
 
 def get_file_handler():
-    file_handler=TimedRotatingFileHandler(LOG_FILE,when='midnight')
+    file_handler=TimedRotatingFileHandler(LOG_FILE,when="D",interval=3)
     file_handler.setFormatter(FORMATTER)
     return file_handler
 
@@ -268,43 +269,43 @@ def enqueue(resolution,kpi_list=None):
             if device_criteria:
                 device_criteria+=")"
 
-        index=next((index for (index, x) in enumerate(table_list) if x["SOURCE_RESOLUTION"] == kpi[resolution['column_source_resolution']] and x["SOURCE_BASE_TABLE"] == kpi['SOURCE_BASE_TABLE'] and x["SMA_NAME"] == kpi['SMA_NAME'] and x["KPI_ADDITIONAL_CRITERIA"] == kpi['ADDITIONAL_CRITERIA']), None)
-        if index >=0:
-            table_list[index]['KPI_LIST'].append({
+        #index=next((index for (index, x) in enumerate(table_list) if x["SOURCE_RESOLUTION"] == kpi[resolution['column_source_resolution']] and x["SOURCE_BASE_TABLE"] == kpi['SOURCE_BASE_TABLE'] and x["SMA_NAME"] == kpi['SMA_NAME'] and x["KPI_ADDITIONAL_CRITERIA"] == kpi['ADDITIONAL_CRITERIA']), None)
+        #if index >=0:
+        #    table_list[index]['KPI_LIST'].append({
+        #        'KPI_NAME':kpi['KPI_NAME'],
+        #        'UNITS':kpi['UNITS'],
+        #        'KPI_EXPRESSION':kpi['KPI_EXPRESSION'],
+        #        'FORMULA':kpi[resolution['column_formula']],
+        #        })
+        #else:            
+        table_list.append({
+            'SMA_NAME':kpi['SMA_NAME'],
+            'SOURCE_BASE_TABLE':kpi['SOURCE_BASE_TABLE'],
+            'DEVICE_FIELD_NAME':kpi['DEVICE_FIELD_NAME'],
+            'F_DEVICE_FIELD_NAME':F_DEVICE_FIELD_NAME,
+            'DEVICE_TARGET_FIELD':kpi['DEVICE_TARGET_FIELD'],
+            'DATETIME':DATETIME,
+            'AGGR_TYPE':resolution['name'],
+            'SOURCE_RESOLUTION':kpi[resolution['column_source_resolution']],
+            'DESTINATION_TABLE':sma['DESTINATION_TABLE'],
+            'SMA_ADDITIONAL_CRITERIA':sma['ADDITIONAL_CRITERIA'],
+            'DESTINATION_DB':sma['DESTINATION_DB'],
+            'DESTINATION_DB_HOST':sma['DESTINATION_DB_HOST'],
+            'DESTINATION_USER_ID':sma['DESTINATION_USER_ID'],
+            'DESTINATION_PW':sma['DESTINATION_PW'],
+            'DEVICE_LIST':device_list,
+            'DEVICE_CRITERIA':device_criteria,
+            'KPI_ADDITIONAL_CRITERIA':kpi['ADDITIONAL_CRITERIA'],
+            'KPI_LIST':[{
                 'KPI_NAME':kpi['KPI_NAME'],
                 'UNITS':kpi['UNITS'],
                 'KPI_EXPRESSION':kpi['KPI_EXPRESSION'],
-                'FORMULA':kpi[resolution['column_formula']],
-                })
-        else:            
-            table_list.append({
-                'SMA_NAME':kpi['SMA_NAME'],
-                'SOURCE_BASE_TABLE':kpi['SOURCE_BASE_TABLE'],
-                'DEVICE_FIELD_NAME':kpi['DEVICE_FIELD_NAME'],
-                'F_DEVICE_FIELD_NAME':F_DEVICE_FIELD_NAME,
-                'DEVICE_TARGET_FIELD':kpi['DEVICE_TARGET_FIELD'],
-                'DATETIME':DATETIME,
-                'AGGR_TYPE':resolution['name'],
-                'SOURCE_RESOLUTION':kpi[resolution['column_source_resolution']],
-                'DESTINATION_TABLE':sma['DESTINATION_TABLE'],
-                'SMA_ADDITIONAL_CRITERIA':sma['ADDITIONAL_CRITERIA'],
-                'DESTINATION_DB':sma['DESTINATION_DB'],
-                'DESTINATION_DB_HOST':sma['DESTINATION_DB_HOST'],
-                'DESTINATION_USER_ID':sma['DESTINATION_USER_ID'],
-                'DESTINATION_PW':sma['DESTINATION_PW'],
-                'DEVICE_LIST':device_list,
-                'DEVICE_CRITERIA':device_criteria,
-                'KPI_ADDITIONAL_CRITERIA':kpi['ADDITIONAL_CRITERIA'],
-                'KPI_LIST':[{
-                    'KPI_NAME':kpi['KPI_NAME'],
-                    'UNITS':kpi['UNITS'],
-                    'KPI_EXPRESSION':kpi['KPI_EXPRESSION'],
-                    'FORMULA':kpi[resolution['column_formula']]
-                    }]
-                })
+                'FORMULA':kpi[resolution['column_formula']]
+                }]
+            })
 
     for table in table_list:
-        app_logger.info('Adding {sma} {table} {resolution} to queue'.format(sma=table['SMA_NAME'],table=table['SOURCE_BASE_TABLE'],resolution=table['AGGR_TYPE']))
+        app_logger.info('Adding SMA: {sma} source_table: {table}_{source_resolution} target resolution: {resolution} kpi: {kpi_name} to queue'.format(sma=table['SMA_NAME'],table=table['SOURCE_BASE_TABLE'],resolution=table['AGGR_TYPE'],source_resolution=table['SOURCE_RESOLUTION'],kpi_name=kpi['KPI_NAME']))
         processes_queue.put(table)
 
 
@@ -417,12 +418,18 @@ def th_run_now_kpi():
 def get_last_handled_datestamp(table):
     with ManagedDbConnection(DB_USER,DB_PASSWORD,ORACLE_SID,DB_HOST) as db:
         cursor=db.cursor()
+	kpi_list=["'"+kpi['KPI_NAME']+"'" for kpi in table['KPI_LIST']]
         sqlplus_script="""    
-        SELECT  MIN(TO_CHAR(LAST_HANDLED_DATESTAMP,'DD-MON-YY HH24:MI'))
+        SELECT  MIN(TO_CHAR(LAST_HANDLED_DATESTAMP,'DD-MON-YY HH24:MI:SS'))
         FROM PMMCONF_DB.SMA_KPI_DATE_CONTROL
-        WHERE SMA_NAME='{SMA_NAME}' AND SOURCE_BASE_TABLE='{SOURCE_BASE_TABLE}' AND RESOLUTION='{RESOLUTION}'
+        WHERE SMA_NAME='{SMA_NAME}' AND SOURCE_BASE_TABLE='{SOURCE_BASE_TABLE}' AND RESOLUTION='{RESOLUTION}' 
+	AND TARGET_RESOLUTION='{TARGET_RESOLUTION}'
+	AND KPI_NAME in ({kpi_list})
         """.format(
-            SMA_NAME=table['SMA_NAME'],SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],RESOLUTION=table['AGGR_TYPE'])
+		SMA_NAME=table['SMA_NAME'],SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+		kpi_list=','.join(kpi_list),
+		RESOLUTION=table['SOURCE_RESOLUTION'],
+		TARGET_RESOLUTION=table['AGGR_TYPE'])
         try:
             cursor.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
@@ -431,38 +438,66 @@ def get_last_handled_datestamp(table):
         # print(''.join(cursor.fetchall()[0]))
         return ''.join(filter(None,cursor.fetchall()[0]))
 
-def update_last_handled_datestamp(table,update=True):
+
+def update_last_handled_datestamp(table,max_datetime):
     with ManagedDbConnection(DB_USER,DB_PASSWORD,ORACLE_SID,DB_HOST) as db:
         cursor=db.cursor()
-        if update==True:
-            sqlplus_script="""        
-            UPDATE PMMCONF_DB.SMA_KPI_DATE_CONTROL
-            SET LAST_HANDLED_DATESTAMP=sysdate
-            WHERE SMA_NAME='{SMA_NAME}' AND SOURCE_BASE_TABLE='{SOURCE_BASE_TABLE}' AND RESOLUTION='{RESOLUTION}'
-            """.format(
-                SMA_NAME=table['SMA_NAME'],
-                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
-                RESOLUTION=table['AGGR_TYPE'])        
-        else:
-            sqlplus_script="""
-            INSERT INTO PMMCONF_DB.SMA_KPI_DATE_CONTROL VALUES
-            ('{SMA_NAME}','{SOURCE_BASE_TABLE}','{RESOLUTION}',sysdate)
-            """.format(
-                SMA_NAME=table['SMA_NAME'],
-                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
-                RESOLUTION=table['AGGR_TYPE'])
-        try:
-            cursor.execute(sqlplus_script)
-        except cx_Oracle.DatabaseError as e:
-            app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' ')	)
-            return False
-        db.commit()
-
+	kpi_list=[kpi['KPI_NAME'] for kpi in table['KPI_LIST']]
+	for kpi in kpi_list:
+		sqlplus_script="""
+	        SELECT count(*)
+	        FROM PMMCONF_DB.SMA_KPI_DATE_CONTROL
+	        WHERE SMA_NAME='{SMA_NAME}' AND SOURCE_BASE_TABLE='{SOURCE_BASE_TABLE}' AND RESOLUTION='{RESOLUTION}'
+	        AND TARGET_RESOLUTION='{TARGET_RESOLUTION}'
+	        AND KPI_NAME ='{kpi}'
+	        """.format(
+	                SMA_NAME=table['SMA_NAME'],SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+	                kpi=kpi,
+	                RESOLUTION=table['SOURCE_RESOLUTION'],
+	                TARGET_RESOLUTION=table['AGGR_TYPE'])
+	        try:
+			cursor.execute(sqlplus_script)
+		except cx_Oracle.DatabaseError as e:
+			app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
+			return False
+		#Row found
+		if cursor.fetchall()[0][0]>0:
+			sqlplus_script="""        
+			UPDATE PMMCONF_DB.SMA_KPI_DATE_CONTROL
+			SET LAST_HANDLED_DATESTAMP=to_date('{max_datetime}','DD-MON-YY HH24:MI:SS')
+			WHERE SMA_NAME='{SMA_NAME}' AND SOURCE_BASE_TABLE='{SOURCE_BASE_TABLE}' AND RESOLUTION='{RESOLUTION}'
+			AND TARGET_RESOLUTION='{TARGET_RESOLUTION}'	
+			AND KPI_NAME ='{kpi}'
+			""".format(
+				SMA_NAME=table['SMA_NAME'],
+                                max_datetime=max_datetime,
+				SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+				kpi=kpi,
+				RESOLUTION=table['SOURCE_RESOLUTION'],
+				TARGET_RESOLUTION=table['AGGR_TYPE'])        
+		else:
+			sqlplus_script="""
+			INSERT INTO PMMCONF_DB.SMA_KPI_DATE_CONTROL VALUES
+			('{SMA_NAME}','{SOURCE_BASE_TABLE}','{RESOLUTION}',to_date('{max_datetime}','DD-MON-YY HH24:MI:SS'),'{TARGET_RESOLUTION}','{kpi}')
+			""".format(
+			SMA_NAME=table['SMA_NAME'],
+			SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+			kpi=kpi,
+                        max_datetime=max_datetime,
+			RESOLUTION=table['SOURCE_RESOLUTION'],
+			TARGET_RESOLUTION=table['AGGR_TYPE'])
+        	try:
+			cursor.execute(sqlplus_script)
+			db.commit()
+		except cx_Oracle.DatabaseError as e:
+			app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' ')	)
+			return False
 
 def query_and_load_data(table):
     """
     checks the datetime and devices to be loaded, removes them from the target table and inserts them again
     """
+    max_datetime=None
 
     if table['DESTINATION_USER_ID']:
         DB_USER_T=table['DESTINATION_USER_ID']
@@ -481,13 +516,11 @@ def query_and_load_data(table):
         cursor_s=db_s.cursor()
 
         last_handled_datestamp=get_last_handled_datestamp(table)
-        update=True
         if not last_handled_datestamp:
             #KPI was never handled use max_history_mins to start
             max_history_mins=filter(lambda x:x['name']==table['AGGR_TYPE'],RESOLUTIONS)[0]['max_history_mins']
-            last_handled_datestamp=(datetime.datetime.now() - datetime.timedelta(minutes = max_history_mins)).strftime("%d-%b-%y %H:%M")
+            last_handled_datestamp=(datetime.datetime.now() - datetime.timedelta(minutes = max_history_mins)).strftime("%d-%b-%y %H:%M:%S")
             app_logger.info("{SMA_NAME} {SOURCE_BASE_TABLE} {RESOLUTION} was never handled starting from {last_handled_datestamp}".format(SMA_NAME=table['SMA_NAME'],SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],RESOLUTION=table['AGGR_TYPE'],last_handled_datestamp=last_handled_datestamp))
-            update=False
 
         app_logger.info('Processing {sma} {SOURCE_BASE_TABLE} {RESOLUTION} from {last_handled_datestamp}'.format(SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],sma=table['SMA_NAME'],RESOLUTION=table['AGGR_TYPE'],last_handled_datestamp=last_handled_datestamp))
 
@@ -521,8 +554,10 @@ def query_and_load_data(table):
                 )
 
         DATETIME_OFFSET=2
-        if table['SOURCE_RESOLUTION']=='5M' or table['SOURCE_RESOLUTION']=='15M':
-            DATETIME_OFFSET=2
+        if table['SOURCE_RESOLUTION']=='5M':
+            DATETIME_OFFSET=1
+        elif table['SOURCE_RESOLUTION']=='15M':
+            DATETIME_OFFSET=7
         elif table['SOURCE_RESOLUTION']=='HR':
             DATETIME_OFFSET=7
         elif table['SOURCE_RESOLUTION']=='DY':
@@ -533,10 +568,10 @@ def query_and_load_data(table):
             DATETIME_OFFSET=180
         #get the datetimes created after last_handled_datestamp
         sqlplus_script="""    
-        SELECT DISTINCT TO_CHAR({DATETIME},'DD-MON-YY HH24:MI'),{DEVICE_FIELD_NAME}
+        SELECT DISTINCT TO_CHAR({DATETIME},'DD-MON-YY HH24:MI:SS'),{DEVICE_FIELD_NAME}
         FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
-        WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI') 
-        AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI')-{DATETIME_OFFSET}
+        WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
+        AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
         {SMA_ADDITIONAL_CRITERIA} 
         {KPI_ADDITIONAL_CRITERIA} 
         {DEVICE_CRITERIA} 
@@ -573,7 +608,7 @@ def query_and_load_data(table):
                     WHERE_DELETE+="\nOR "
                 else:
                     WHERE_DELETE+="("
-                WHERE_DELETE+="(DATETIME=TO_DATE('{DATETIME}','DD-MON-YY HH24:MI') AND {DEVICE_TARGET_FIELD}='{DEVICE_NAME}')".format(DATETIME=line[0],
+                WHERE_DELETE+="(DATETIME=TO_DATE('{DATETIME}','DD-MON-YY HH24:MI:SS') AND {DEVICE_TARGET_FIELD}='{DEVICE_NAME}')".format(DATETIME=line[0],
                     DEVICE_NAME=line[1],
                     DEVICE_TARGET_FIELD=table['DEVICE_TARGET_FIELD'].split(',')[0])
                 if index == 10:
@@ -615,14 +650,15 @@ def query_and_load_data(table):
             
             
             sqlplus_script="""            
-            SELECT TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI'),
+            SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
+            TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
             '{AGGR_TYPE}',
             {DEVICE_FIELD_NAME},
-            TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI'),
+            TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI:SS'),
             {kpi_list}
             FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
-            WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI') 
-            AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI')-2
+            WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
+            AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
             {SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
             GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
             """.format(            
@@ -637,6 +673,7 @@ def query_and_load_data(table):
                 KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
                 DEVICE_CRITERIA=DEVICE_CRITERIA,
                 last_handled_datestamp=last_handled_datestamp,
+            	DATETIME_OFFSET=DATETIME_OFFSET,
                 DEVICE_LIST=DEVICE_LIST
                 )
             #print(sqlplus_script)
@@ -647,26 +684,27 @@ def query_and_load_data(table):
                 return False
             
             #Build bcp file
-            file_name="{BCP_IN_DIR}/{SMA_NAME}-{SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}_{DATETIME}-{DESTINATION_TABLE}".format(
+            file_name="{BCP_IN_DIR}/{SMA_NAME}-{SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}_{DATETIME}_{RANDOM}-{DESTINATION_TABLE}".format(
                 BCP_IN_DIR=BCP_IN_DIR,
                 SMA_NAME=table['SMA_NAME'],
                 SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
                 SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
                 DATETIME=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"),
+		RANDOM=random.randint(1,1000000),
                 DESTINATION_TABLE=table['DESTINATION_TABLE'])
-            base_len=3+len(table['DEVICE_TARGET_FIELD'].split(','))
+            base_len=4+len(table['DEVICE_TARGET_FIELD'].split(','))
             with open(file_name,'w') as file:
                 for record in cursor_s:
+                    if not max_datetime:
+                        max_datetime=record[0]
+                    else:
+                        max_datetime=max(max_datetime,record[0])
                     for i in range(base_len,len(record),3):
-                        file.write(','.join(['' if x is None else x for x in record[:base_len]])+',')
+                        file.write(','.join(['' if x is None else x for x in record[1:base_len]])+',')
                         try:
                             file.write(str(record[i])+','+str(record[i+1])+','+str(record[i+2])+'\n')
                         except IndexError:
-                            print(sqlplus_script)
-                            print(record)
-                            print(table['F_DEVICE_FIELD_NAME'])
-                            print(table['DEVICE_TARGET_FIELD'])
-                            print(table['DEVICE_TARGET_FIELD'])
+                            app_logger.error(sqlplus_script)
                             #quit()
                 try:
                     os.rename(file_name, file_name+".bcp")                
@@ -681,7 +719,8 @@ def query_and_load_data(table):
             sqlplus_script=sqlplus_script.replace('\n',' ')
             ))
         #Update LAST_HANDLED_DATESTAMP
-        update_last_handled_datestamp(table,update)
+	if max_datetime:
+        	update_last_handled_datestamp(table,max_datetime)
 
 def load_bcp_files():
     while True:
@@ -712,10 +751,10 @@ def load_bcp_files():
                 file.write('INTO TABLE {target_table}\n'.format(target_table=target_table))
                 file.write('APPEND\n')
                 file.write("FIELDS TERMINATED BY ','\n")
-                file.write('(DATETIME DATE "DD-MON-YY HH24:MI",\n')
+                file.write('(DATETIME DATE "DD-MON-YY HH24:MI:SS",\n')
                 file.write('AGG_TYPE  ,\n')
                 file.write('{DEVICE_TARGET_FIELD} ,\n'.format(DEVICE_TARGET_FIELD=kpi['DEVICE_TARGET_FIELD']))
-                file.write('REC_CREATE_DATE DATE "DD-MON-YY HH24:MI",\n')
+                file.write('REC_CREATE_DATE DATE "DD-MON-YY HH24:MI:SS",\n')
                 file.write('KPI_NAME,\n')
                 file.write('KPI_VALUE,\n')
                 file.write('KPI_UNITS )\n')
