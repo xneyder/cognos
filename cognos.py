@@ -572,6 +572,7 @@ def query_and_load_data(table):
         FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
         WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
         AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
+        AND DATETIME < TO_CHAR(trunc(sysdate,'HH')-(1/1440*120),'DD-MON-YY HH24:MI:SS')
         {SMA_ADDITIONAL_CRITERIA} 
         {KPI_ADDITIONAL_CRITERIA} 
         {DEVICE_CRITERIA} 
@@ -589,7 +590,7 @@ def query_and_load_data(table):
             DATETIME=table['DATETIME'],
             )
 
-        # print(sqlplus_script)
+        #print(sqlplus_script)
         try:
             cursor_s.execute(sqlplus_script)
         except cx_Oracle.DatabaseError as e:
@@ -659,6 +660,7 @@ def query_and_load_data(table):
             FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
             WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
             AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
+            AND DATETIME < TO_CHAR(trunc(sysdate,'HH')-(1/1440*120),'DD-MON-YY HH24:MI:SS')
             {SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
             GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
             """.format(            
