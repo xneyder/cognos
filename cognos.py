@@ -49,7 +49,7 @@ RESOLUTIONS=[
     {'name':'MM','offset':780,'column_formula':'AGGR_MO','column_source_resolution':'AGGR_TABLE_EXT_MO','max_history_mins':259200},
     ]
 processes_queue=Queue()
-threads = 30
+threads = 20
 sma_details=[]
 kpi_details=[]
 device_details=[]
@@ -420,7 +420,7 @@ def get_last_handled_datestamp(table):
         cursor=db.cursor()
 	kpi_list=["'"+kpi['KPI_NAME']+"'" for kpi in table['KPI_LIST']]
         sqlplus_script="""    
-        SELECT  MIN(TO_CHAR(LAST_HANDLED_DATESTAMP,'DD-MON-YY HH24:MI:SS'))
+        SELECT  MIN(TO_CHAR(LAST_HANDLED_DATESTAMP-(1/1440*60),'DD-MON-YY HH24:MI:SS'))
         FROM PMMCONF_DB.SMA_KPI_DATE_CONTROL
         WHERE SMA_NAME='{SMA_NAME}' AND SOURCE_BASE_TABLE='{SOURCE_BASE_TABLE}' AND RESOLUTION='{RESOLUTION}' 
 	AND TARGET_RESOLUTION='{TARGET_RESOLUTION}'
