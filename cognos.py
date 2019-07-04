@@ -44,12 +44,12 @@ RESOLUTIONS=[
     {'name':'5MIN','offset':10,'column_formula':'AGGR_5M','column_source_resolution':'AGGR_TABLE_EXT_5M','max_history_mins':4880},
     {'name':'15MIN','offset':20,'column_formula':'AGGR_15M','column_source_resolution':'AGGR_TABLE_EXT_15M','max_history_mins':4880},
     {'name':'HH','offset':80,'column_formula':'AGGR_HH','column_source_resolution':'AGGR_TABLE_EXT_HH','max_history_mins':4880},
-    {'name':'DD','offset':360,'column_formula':'AGGR_DY','column_source_resolution':'AGGR_TABLE_EXT_DY','max_history_mins':10080},
-    {'name':'IW','offset':600,'column_formula':'AGGR_IW','column_source_resolution':'AGGR_TABLE_EXT_IW','max_history_mins':43200},
-    {'name':'MM','offset':780,'column_formula':'AGGR_MO','column_source_resolution':'AGGR_TABLE_EXT_MO','max_history_mins':259200},
+    {'name':'DD','offset':420,'column_formula':'AGGR_DY','column_source_resolution':'AGGR_TABLE_EXT_DY','max_history_mins':10080},
+    {'name':'IW','offset':1200,'column_formula':'AGGR_IW','column_source_resolution':'AGGR_TABLE_EXT_IW','max_history_mins':43200},
+    {'name':'MM','offset':1200,'column_formula':'AGGR_MO','column_source_resolution':'AGGR_TABLE_EXT_MO','max_history_mins':259200},
     ]
 processes_queue=Queue()
-threads = 20
+threads = 80
 sma_details=[]
 kpi_details=[]
 device_details=[]
@@ -415,6 +415,32 @@ def th_run_now_kpi():
                 db.commit()
             time.sleep(30)
 
+def th_update_late_counters():
+    with ManagedDbConnection(DB_USER,DB_PASSWORD,ORACLE_SID,DB_HOST) as db:
+        cursor=db.cursor()
+        while True:
+            sqlplus_script="""
+            UPDATE PMMCONF_DB.SMA_KPI_DATE_CONTROL 
+            SET LAST_HANDLED_DATESTAMP=LAST_HANDLED_DATESTAMP-(1/1440*360)         
+            """
+            try:
+                cursor.execute(sqlplus_script)
+            except cx_Oracle.DatabaseError as e:
+                app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
+            db.commit()
+            #sqlplus_script="""
+            #UPDATE PMMCONF_DB.SMA_KPI_DETAILS
+            #SET RUN_NOW=1            
+            #"""
+            #try:
+            #    cursor.execute(sqlplus_script)
+            #except cx_Oracle.DatabaseError as e:
+            #    app_logger.error(str(e)+" --- "+sqlplus_script.replace('\n',' '))
+            #db.commit()
+            #sleep 6 hours
+            time.sleep(21600)
+
+
 def get_last_handled_datestamp(table):
     with ManagedDbConnection(DB_USER,DB_PASSWORD,ORACLE_SID,DB_HOST) as db:
         cursor=db.cursor()
@@ -487,6 +513,7 @@ def update_last_handled_datestamp(table,max_datetime):
 			RESOLUTION=table['SOURCE_RESOLUTION'],
 			TARGET_RESOLUTION=table['AGGR_TYPE'])
         	try:
+			#print(sqlplus_script.replace('\n',' '))
 			cursor.execute(sqlplus_script)
 			db.commit()
 		except cx_Oracle.DatabaseError as e:
@@ -566,13 +593,27 @@ def query_and_load_data(table):
             DATETIME_OFFSET=90
         elif table['SOURCE_RESOLUTION']=='MO':
             DATETIME_OFFSET=180
+
+        if table['AGGR_TYPE']=='5MIN':
+            TRUNC_FUNC="trunc(sysdate,'HH')-(1/1440*120)"
+        elif table['AGGR_TYPE']=='15MIN':
+            TRUNC_FUNC="trunc(sysdate,'HH')-(1/1440*120)"
+        elif table['AGGR_TYPE']=='HH':
+            TRUNC_FUNC="trunc(sysdate,'HH')-(1/1440*120)"
+        elif table['AGGR_TYPE']=='DD':
+            TRUNC_FUNC="trunc(sysdate,'DD')"
+        elif table['AGGR_TYPE']=='IW':
+            TRUNC_FUNC="trunc(sysdate,'IW')"
+        elif table['AGGR_TYPE']=='MM':
+            TRUNC_FUNC="trunc(sysdate,'MM')"
+
         #get the datetimes created after last_handled_datestamp
         sqlplus_script="""    
         SELECT DISTINCT TO_CHAR({DATETIME},'DD-MON-YY HH24:MI:SS'),{DEVICE_FIELD_NAME}
         FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
         WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
         AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
-        AND DATETIME < TO_CHAR(trunc(sysdate,'HH')-(1/1440*120),'DD-MON-YY HH24:MI:SS')
+        AND DATETIME < {TRUNC_FUNC}
         {SMA_ADDITIONAL_CRITERIA} 
         {KPI_ADDITIONAL_CRITERIA} 
         {DEVICE_CRITERIA} 
@@ -588,6 +629,7 @@ def query_and_load_data(table):
             DEVICE_LIST=DEVICE_LIST,
             DATETIME_OFFSET=DATETIME_OFFSET,
             DATETIME=table['DATETIME'],
+            TRUNC_FUNC=TRUNC_FUNC
             )
 
         #print(sqlplus_script)
@@ -650,7 +692,7 @@ def query_and_load_data(table):
                 db.commit()
             
             
-            sqlplus_script="""            
+            sqlplus_script="""
             SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
             TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
             '{AGGR_TYPE}',
@@ -660,7 +702,7 @@ def query_and_load_data(table):
             FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
             WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
             AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
-            AND DATETIME < TO_CHAR(trunc(sysdate,'HH')-(1/1440*120),'DD-MON-YY HH24:MI:SS')
+            AND DATETIME < {TRUNC_FUNC}
             {SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
             GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
             """.format(            
@@ -676,7 +718,8 @@ def query_and_load_data(table):
                 DEVICE_CRITERIA=DEVICE_CRITERIA,
                 last_handled_datestamp=last_handled_datestamp,
             	DATETIME_OFFSET=DATETIME_OFFSET,
-                DEVICE_LIST=DEVICE_LIST
+                DEVICE_LIST=DEVICE_LIST,
+                TRUNC_FUNC=TRUNC_FUNC,
                 )
             #print(sqlplus_script)
             try:
@@ -698,9 +741,10 @@ def query_and_load_data(table):
             with open(file_name,'w') as file:
                 for record in cursor_s:
                     if not max_datetime:
-                        max_datetime=record[0]
+                        max_datetime=datetime.datetime.strptime(record[0],'%d-%b-%y %H:%M:%S')
                     else:
-                        max_datetime=max(max_datetime,record[0])
+                        new_datetime=datetime.datetime.strptime(record[0],'%d-%b-%y %H:%M:%S')
+                        max_datetime=max(max_datetime,new_datetime)
                     for i in range(base_len,len(record),3):
                         file.write(','.join(['' if x is None else x for x in record[1:base_len]])+',')
                         try:
@@ -722,6 +766,7 @@ def query_and_load_data(table):
             ))
         #Update LAST_HANDLED_DATESTAMP
 	if max_datetime:
+		max_datetime=datetime.datetime.strftime(max_datetime,'%d-%b-%y %H:%M:%S')
         	update_last_handled_datestamp(table,max_datetime)
 
 def load_bcp_files():
@@ -856,17 +901,14 @@ try:
 except Exception as e:
     logger.exception("load_bcp_files crashed. Error: %s", e)
 
-#Monitor that none of the threads crashes
+
+#update back for late counters
+#worker = Thread(target=th_update_late_counters, args=())
+#worker.setDaemon(True)
+#workers.append({'function':th_update_late_counters,'params':'','object':worker})
+#worker.start()
+
+#Sleep forever
 while True:
-    for idx,running_worker in enumerate(workers):
-        if not running_worker['object'].isAlive():
-            app_logger.error('Thread {running_worker} crashed running it again'.format(running_worker=running_worker))
-            if running_worker['params']:
-                worker = Thread(target=running_worker['function'], args=(running_worker['params'],))
-            else:
-                worker = Thread(target=running_worker['function'], args=())
-            worker.setDaemon(True)
-            workers[idx]['object']=worker
-            worker.start()
     time.sleep(900)
 
