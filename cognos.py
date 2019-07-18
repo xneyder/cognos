@@ -49,7 +49,7 @@ RESOLUTIONS=[
     {'name':'MM','offset':1200,'column_formula':'AGGR_MO','column_source_resolution':'AGGR_TABLE_EXT_MO','max_history_mins':259200},
     ]
 processes_queue=Queue()
-threads = 80
+threads = 20
 sma_details=[]
 kpi_details=[]
 device_details=[]
@@ -297,10 +297,12 @@ def enqueue(resolution,kpi_list=None):
             'DEVICE_CRITERIA':device_criteria,
             'KPI_ADDITIONAL_CRITERIA':kpi['ADDITIONAL_CRITERIA'],
             'KPI_LIST':[{
+                'KPI_ID':'ID'+str(random.randint(1,10000000)),
                 'KPI_NAME':kpi['KPI_NAME'],
                 'UNITS':kpi['UNITS'],
                 'KPI_EXPRESSION':kpi['KPI_EXPRESSION'],
                 'FORMULA':kpi[resolution['column_formula']]
+                'AGGR_TO_DEVICE':kpi['AGGR_TO_DEVICE']
                 }]
             })
 
@@ -552,12 +554,26 @@ def query_and_load_data(table):
         app_logger.info('Processing {sma} {SOURCE_BASE_TABLE} {RESOLUTION} from {last_handled_datestamp}'.format(SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],sma=table['SMA_NAME'],RESOLUTION=table['AGGR_TYPE'],last_handled_datestamp=last_handled_datestamp))
 
 
+
+
         kpi_list=[]
-        for kpi in table['KPI_LIST']:
-            kpi_list.append("'"+kpi['KPI_NAME']+"'")
-            kpi_list.append(kpi['FORMULA']+'('+kpi['KPI_EXPRESSION']+')')
-            kpi_list.append("'"+kpi['UNITS']+"'")
-        kpi_list=",\n".join(kpi_list)
+        kpi_list_device=[]
+	#Check if we have AGGR to DEVICE different than TIME AGGREGATION
+	if kpi['AGGR_TO_DEVICE'] in ['MAX','MIN','AVG','SUM'] and kpi['FORMULA']!=kpi['AGGR_TO_DEVICE']:
+	        for kpi in table['KPI_LIST']:
+	            kpi_list_device.append(kpi['AGGR_TO_DEVICE']+'('+kpi['KPI_EXPRESSION']+') as '+kpi['KPI_ID'])
+	        kpi_list_device=",\n".join(kpi_list_device)
+	        for kpi in table['KPI_LIST']:
+	            kpi_list.append("'"+kpi['KPI_NAME']+"'")
+	            kpi_list.append(kpi['FORMULA']+'('+kpi['KPI_ID']+')')
+	            kpi_list.append("'"+kpi['UNITS']+"'")
+	        kpi_list=",\n".join(kpi_list)
+	else:
+	        for kpi in table['KPI_LIST']:
+	            kpi_list.append("'"+kpi['KPI_NAME']+"'")
+	            kpi_list.append(kpi['FORMULA']+'('+kpi['KPI_EXPRESSION']+')')
+	            kpi_list.append("'"+kpi['UNITS']+"'")
+	        kpi_list=",\n".join(kpi_list)
 
         SMA_ADDITIONAL_CRITERIA=""
         if table['SMA_ADDITIONAL_CRITERIA']:
@@ -691,36 +707,73 @@ def query_and_load_data(table):
                     return False
                 db.commit()
             
-            
-            sqlplus_script="""
-            SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
-            TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
-            '{AGGR_TYPE}',
-            {DEVICE_FIELD_NAME},
-            TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI:SS'),
-            {kpi_list}
-            FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
-            WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
-            AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
-            AND DATETIME < {TRUNC_FUNC}
-            {SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
-            GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
-            """.format(            
-                AGGR_TYPE=table['AGGR_TYPE'],
-                #DEVICE_FIELD_NAME=table['F_DEVICE_FIELD_NAME'],
-                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'].replace("FORMULA:",""),
-                DATETIME=table['DATETIME'],
-                kpi_list=kpi_list,
-                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
-                SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
-                SMA_ADDITIONAL_CRITERIA=SMA_ADDITIONAL_CRITERIA,
-                KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
-                DEVICE_CRITERIA=DEVICE_CRITERIA,
-                last_handled_datestamp=last_handled_datestamp,
-            	DATETIME_OFFSET=DATETIME_OFFSET,
-                DEVICE_LIST=DEVICE_LIST,
-                TRUNC_FUNC=TRUNC_FUNC,
-                )
+            if not kpi_list_device:
+	            sqlplus_script="""
+	            SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
+	            TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
+	            '{AGGR_TYPE}',
+	            {DEVICE_FIELD_NAME},
+	            TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI:SS'),
+	            {kpi_list}
+	            FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
+	            WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
+	            AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
+	            AND DATETIME < {TRUNC_FUNC}
+	            {SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
+	            GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
+	            """.format(            
+	                AGGR_TYPE=table['AGGR_TYPE'],
+	                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'].replace("FORMULA:",""),
+	                DATETIME=table['DATETIME'],
+	                kpi_list=kpi_list,
+	                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+	                SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
+	                SMA_ADDITIONAL_CRITERIA=SMA_ADDITIONAL_CRITERIA,
+	                KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
+	                DEVICE_CRITERIA=DEVICE_CRITERIA,
+	                last_handled_datestamp=last_handled_datestamp,
+	            	DATETIME_OFFSET=DATETIME_OFFSET,
+	                DEVICE_LIST=DEVICE_LIST,
+	                TRUNC_FUNC=TRUNC_FUNC,
+	                )
+            else:
+	            sqlplus_script="""
+	            SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
+	            TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
+	            '{AGGR_TYPE}',
+	            DEVICE_FIELD_NAME,
+	            TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI:SS'),
+	            {kpi_list}
+                    FROM (
+                        SELECT DATETIME,
+                        {kpi_list_device},
+                        max(DATETIME_INS) DATETIME_INS,
+                        {DEVICE_FIELD_NAME} as DEVICE_FIELD_NAME
+	            	FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
+	            	WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
+	            	AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
+	            	AND DATETIME < {TRUNC_FUNC}
+	            	{SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
+                        GROUP BY DATETIME, {DEVICE_FIELD_NAME}
+                    )
+	            GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
+                  
+	            """.format(            
+	                AGGR_TYPE=table['AGGR_TYPE'],
+	                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'].replace("FORMULA:",""),
+	                DATETIME=table['DATETIME'],
+	                kpi_list=kpi_list,
+	                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+	                SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
+	                SMA_ADDITIONAL_CRITERIA=SMA_ADDITIONAL_CRITERIA,
+	                KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
+	                DEVICE_CRITERIA=DEVICE_CRITERIA,
+	                last_handled_datestamp=last_handled_datestamp,
+	            	DATETIME_OFFSET=DATETIME_OFFSET,
+	                DEVICE_LIST=DEVICE_LIST,
+	                TRUNC_FUNC=TRUNC_FUNC,
+	                )
+
             #print(sqlplus_script)
             try:
                 cursor_s.execute(sqlplus_script)
