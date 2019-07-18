@@ -1,1 +1,3 @@
 env.ksh
+.gitignore
+*swp

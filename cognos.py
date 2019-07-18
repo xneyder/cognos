@@ -301,7 +301,7 @@ def enqueue(resolution,kpi_list=None):
                 'KPI_NAME':kpi['KPI_NAME'],
                 'UNITS':kpi['UNITS'],
                 'KPI_EXPRESSION':kpi['KPI_EXPRESSION'],
-                'FORMULA':kpi[resolution['column_formula']]
+                'FORMULA':kpi[resolution['column_formula']],
                 'AGGR_TO_DEVICE':kpi['AGGR_TO_DEVICE']
                 }]
             })
@@ -559,7 +559,7 @@ def query_and_load_data(table):
         kpi_list=[]
         kpi_list_device=[]
 	#Check if we have AGGR to DEVICE different than TIME AGGREGATION
-	if kpi['AGGR_TO_DEVICE'] in ['MAX','MIN','AVG','SUM'] and kpi['FORMULA']!=kpi['AGGR_TO_DEVICE']:
+	if table['KPI_LIST'][0]['AGGR_TO_DEVICE'] in ['MAX','MIN','AVG','SUM'] and table['KPI_LIST'][0]['FORMULA']!=table['KPI_LIST'][0]['AGGR_TO_DEVICE']:
 	        for kpi in table['KPI_LIST']:
 	            kpi_list_device.append(kpi['AGGR_TO_DEVICE']+'('+kpi['KPI_EXPRESSION']+') as '+kpi['KPI_ID'])
 	        kpi_list_device=",\n".join(kpi_list_device)
@@ -706,7 +706,7 @@ def query_and_load_data(table):
                     app_logger.error(table['SMA_NAME']+" --- "+str(e)+" --- "+sqlplus_script.replace('\n',' '))
                     return False
                 db.commit()
-            
+           
             if not kpi_list_device:
 	            sqlplus_script="""
 	            SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
@@ -737,42 +737,42 @@ def query_and_load_data(table):
 	                TRUNC_FUNC=TRUNC_FUNC,
 	                )
             else:
-	            sqlplus_script="""
-	            SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
-	            TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
-	            '{AGGR_TYPE}',
-	            DEVICE_FIELD_NAME,
-	            TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI:SS'),
-	            {kpi_list}
-                    FROM (
-                        SELECT DATETIME,
-                        {kpi_list_device},
-                        max(DATETIME_INS) DATETIME_INS,
-                        {DEVICE_FIELD_NAME} as DEVICE_FIELD_NAME
-	            	FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
-	            	WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
-	            	AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
-	            	AND DATETIME < {TRUNC_FUNC}
-	            	{SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
-                        GROUP BY DATETIME, {DEVICE_FIELD_NAME}
-                    )
-	            GROUP BY {DATETIME},{DEVICE_FIELD_NAME}
-                  
-	            """.format(            
-	                AGGR_TYPE=table['AGGR_TYPE'],
-	                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'].replace("FORMULA:",""),
-	                DATETIME=table['DATETIME'],
-	                kpi_list=kpi_list,
-	                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
-	                SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
-	                SMA_ADDITIONAL_CRITERIA=SMA_ADDITIONAL_CRITERIA,
-	                KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
-	                DEVICE_CRITERIA=DEVICE_CRITERIA,
-	                last_handled_datestamp=last_handled_datestamp,
-	            	DATETIME_OFFSET=DATETIME_OFFSET,
-	                DEVICE_LIST=DEVICE_LIST,
-	                TRUNC_FUNC=TRUNC_FUNC,
-	                )
+                sqlplus_script="""
+                SELECT TO_CHAR(max(DATETIME_INS),'DD-MON-YY HH24:MI:SS') DATETIME_INS,
+                TO_CHAR( {DATETIME} ,'DD-MON-YY HH24:MI:SS'),
+                '{AGGR_TYPE}',
+                DEVICE_FIELD_NAME,
+                TO_CHAR(SYSDATE,'DD-MON-YY HH24:MI:SS'),
+                {kpi_list}
+                FROM (
+                SELECT DATETIME,
+                {kpi_list_device},
+                max(DATETIME_INS) DATETIME_INS,
+                {DEVICE_FIELD_NAME} as DEVICE_FIELD_NAME
+                FROM {SOURCE_BASE_TABLE}_{SOURCE_RESOLUTION}
+                WHERE DATETIME_INS>TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS') 
+                AND DATETIME > TO_DATE('{last_handled_datestamp}','DD-MON-YY HH24:MI:SS')-{DATETIME_OFFSET}
+                AND DATETIME < {TRUNC_FUNC}
+                {SMA_ADDITIONAL_CRITERIA} {KPI_ADDITIONAL_CRITERIA} {DEVICE_CRITERIA} {DEVICE_LIST}
+                GROUP BY DATETIME, {DEVICE_FIELD_NAME}
+                )
+                GROUP BY {DATETIME},DEVICE_FIELD_NAME
+                """.format(            
+                AGGR_TYPE=table['AGGR_TYPE'],
+                DEVICE_FIELD_NAME=table['DEVICE_FIELD_NAME'].replace("FORMULA:",""),
+                DATETIME=table['DATETIME'],
+                kpi_list=kpi_list,
+                kpi_list_device=kpi_list_device,
+                SOURCE_BASE_TABLE=table['SOURCE_BASE_TABLE'],
+                SOURCE_RESOLUTION=table['SOURCE_RESOLUTION'],
+                SMA_ADDITIONAL_CRITERIA=SMA_ADDITIONAL_CRITERIA,
+                KPI_ADDITIONAL_CRITERIA=KPI_ADDITIONAL_CRITERIA,
+                DEVICE_CRITERIA=DEVICE_CRITERIA,
+                last_handled_datestamp=last_handled_datestamp,
+                DATETIME_OFFSET=DATETIME_OFFSET,
+                DEVICE_LIST=DEVICE_LIST,
+                TRUNC_FUNC=TRUNC_FUNC,
+                )
 
             #print(sqlplus_script)
             try:
